@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom - Cycle & Period Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .period-day { background-color: #f43f5e !important; color: #ffffff !important; }
+    .predicted-day { background-color: #fecdd3 !important; color: #be123c !important; border: 1.5px dashed #f43f5e; }
+    .fertile-day { background-color: #e0e7ff !important; color: #3730a3 !important; }
+    .ovulation-day { background-color: #818cf8 !important; color: #ffffff !important; }
+    .today-marker { ring: 2px solid #0f172a; ring-offset: 1px; }
+  </style>
+</head>
+<body class="bg-rose-50/40 text-slate-800 min-h-screen font-sans antialiased selection:bg-rose-100 selection:text-rose-600">
+
+  <!-- Header -->
+  <header class="bg-white/80 backdrop-blur border-b border-rose-100 sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">B</div>
+        <span class="font-extrabold text-lg text-slate-800 tracking-tight">Bloom</span>
+      </div>
+
+      <!-- Auth Bar & Shareable Link Trigger -->
+      <div class="flex items-center space-x-2">
+        <button id="share-link-btn" type="button" class="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition flex items-center gap-1.5" title="Copy shareable link to open on phone">
+          <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Share Link</span>
+        </button>
+
+        <div id="auth-section" class="flex items-center space-x-2">
+          <!-- Populated dynamically via JS -->
+          <button id="google-login-btn" type="button" class="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition flex items-center gap-1.5">
+            <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+            <span>Sign In</span>
+          </button>
+        </div>
+
+        <button id="open-settings-btn" type="button" class="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition" title="Settings">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Login Wall Prompt (Shown when signed out) -->
+  <div id="auth-gate" class="max-w-md mx-auto my-12 px-4 text-center hidden">
+    <div class="bg-white p-8 rounded-3xl border border-rose-100 shadow-xl shadow-rose-500/5 space-y-4">
+      <div class="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl mx-auto flex items-center justify-center">
+        <i data-lucide="shield-check" class="w-7 h-7"></i>
+      </div>
+      <h2 class="text-xl font-bold text-slate-900">Sign in to sync your data</h2>
+      <p class="text-xs text-slate-500 leading-relaxed">Sign in with your Google Account so your cycle records remain completely private and automatically sync to your link across any device.</p>
+      <button id="gate-login-btn" type="button" class="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm">
+        <i data-lucide="log-in" class="w-4 h-4"></i> Continue with Google
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content App -->
+  <main id="app-container" class="max-w-4xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Top Forecast Banner -->
+    <div class="bg-gradient-to-br from-rose-500 to-pink-600 rounded-3xl p-6 text-white shadow-lg shadow-rose-500/10">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase tracking-wider font-bold text-rose-100">Next Expected Cycle</span>
+            <span id="stat-status-badge" class="px-2 py-0.5 rounded-full bg-rose-700/50 text-[10px] font-semibold">No data</span>
+          </div>
+          <h2 id="stat-next-date" class="text-3xl font-extrabold mt-1 tracking-tight">--</h2>
+          <p id="stat-countdown" class="text-sm text-rose-100 mt-0.5">Add your period to see forecast</p>
+        </div>
+
+        <button id="open-log-modal-btn" type="button" class="bg-white text-rose-600 px-5 py-3 rounded-2xl font-bold text-sm shadow hover:bg-rose-50 active:scale-95 transition flex items-center justify-center gap-2 shrink-0">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>Log Period</span>
+        </button>
+      </div>
+
+      <!-- Quick Metrics Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/15 text-xs">
+        <div>
+          <span class="text-rose-200 block text-[11px]">Avg Cycle</span>
+          <span class="text-base font-bold"><span id="stat-avg-cycle">28</span> days</span>
+          <span id="stat-cycle-subtitle" class="block text-[10px] text-rose-200/80 truncate">Standard baseline</span>
+        </div>
+        <div>
+          <span class="text-rose-200 block text-[11px]">Avg Duration</span>
+          <span class="text-base font-bold"><span id="stat-avg-duration">5</span> days</span>
+          <span class="block text-[10px] text-rose-200/80">Bleeding window</span>
+        </div>
+        <div>
+          <span class="text-rose-200 block text-[11px]">Fertile Window</span>
+          <span id="stat-fertile-window" class="text-xs font-semibold block truncate">--</span>
+          <span class="block text-[10px] text-rose-200/80">Est. 6-day window</span>
+        </div>
+        <div>
+          <span class="text-rose-200 block text-[11px]">Ovulation</span>
+          <span id="stat-ovulation-day" class="text-xs font-semibold block truncate">--</span>
+          <span class="block text-[10px] text-rose-200/80">~14 days pre-cycle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendar & History Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+      <!-- Calendar Column -->
+      <div class="md:col-span-7 bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h3 id="calendar-month-year" class="font-bold text-base text-slate-800">Month</h3>
+          <div class="flex items-center space-x-1">
+            <button id="cal-prev" type="button" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+            <button id="cal-today" type="button" class="px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">Today</button>
+            <button id="cal-next" type="button" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400 mb-2">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+
+        <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-3 text-[10px] font-medium text-slate-500">
+          <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Period</div>
+          <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border border-rose-500 bg-rose-100"></span> Predicted</div>
+          <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span> Ovulation</div>
+          <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-100"></span> Fertile</div>
+        </div>
+      </div>
+
+      <!-- History Column -->
+      <div class="md:col-span-5 bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-base text-slate-800">Cycle History</h3>
+          <span id="log-count-badge" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">0 records</span>
+        </div>
+
+        <div id="empty-history" class="py-12 text-center text-slate-400 space-y-2">
+          <i data-lucide="calendar-heart" class="w-8 h-8 mx-auto text-slate-300"></i>
+          <p class="text-xs">No entries recorded yet.</p>
+        </div>
+
+        <div id="period-logs-list" class="space-y-2 overflow-y-auto max-h-[380px] pr-1"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Log Modal -->
+  <div id="log-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden transition-opacity">
+    <div id="log-modal-card" class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl transform transition-transform scale-95 opacity-0">
+      <div class="flex items-center justify-between mb-4">
+        <h4 id="modal-title" class="font-bold text-base text-slate-800">Record Period Date</h4>
+        <button id="close-log-modal-btn" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <form id="period-form" class="space-y-4">
+        <input type="hidden" id="edit-id">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Start Date</label>
+          <input type="date" id="period-start-date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-rose-400">
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center text-xs font-semibold text-slate-600 mb-1">
+            <span>Duration</span>
+            <span id="duration-val-label" class="text-rose-500 font-bold">5 days</span>
+          </div>
+          <input type="range" id="period-duration" min="1" max="14" value="5" class="w-full accent-rose-500 cursor-pointer">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Flow Intensity</label>
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <label class="flex items-center justify-center p-2 rounded-xl border border-slate-200 cursor-pointer hover:border-rose-300 has-[:checked]:bg-rose-50 has-[:checked]:border-rose-500 has-[:checked]:text-rose-600 font-medium">
+              <input type="radio" name="flow" value="Light" class="hidden"> Light
+            </label>
+            <label class="flex items-center justify-center p-2 rounded-xl border border-slate-200 cursor-pointer hover:border-rose-300 has-[:checked]:bg-rose-50 has-[:checked]:border-rose-500 has-[:checked]:text-rose-600 font-medium">
+              <input type="radio" name="flow" value="Medium" class="hidden" checked> Medium
+            </label>
+            <label class="flex items-center justify-center p-2 rounded-xl border border-slate-200 cursor-pointer hover:border-rose-300 has-[:checked]:bg-rose-50 has-[:checked]:border-rose-500 has-[:checked]:text-rose-600 font-medium">
+              <input type="radio" name="flow" value="Heavy" class="hidden"> Heavy
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Notes (Optional)</label>
+          <input type="text" id="period-notes" placeholder="Cramps, mood, symptoms..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-rose-400">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" id="cancel-log-btn" class="w-1/2 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Cancel</button>
+          <button type="submit" class="w-1/2 py-2.5 rounded-xl bg-rose-500 text-white text-xs font-semibold shadow hover:bg-rose-600 transition">Save Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="font-bold text-base text-slate-800">Settings & Sync</h4>
+        <button id="close-settings-modal-btn" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Baseline Cycle (Days)</label>
+          <div class="flex gap-2">
+            <input type="number" id="default-cycle-input" min="18" max="50" value="28" class="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs">
+            <button id="save-default-cycle-btn" type="button" class="px-3 py-1.5 bg-slate-800 text-white rounded-xl text-xs font-semibold hover:bg-slate-700">Save</button>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 flex gap-2">
+          <button id="export-json-btn" type="button" class="w-1/2 py-2 text-xs border border-slate-200 rounded-xl font-semibold hover:bg-slate-50 text-slate-600">Export Backup</button>
+          <label class="w-1/2 py-2 text-xs border border-slate-200 rounded-xl font-semibold hover:bg-slate-50 text-slate-600 text-center cursor-pointer">
+            Import
+            <input type="file" id="import-json-input" accept=".json" class="hidden">
+          </label>
+        </div>
+
+        <button id="clear-data-btn" type="button" class="w-full py-2 text-xs text-rose-500 hover:bg-rose-50 rounded-xl font-semibold transition">
+          Clear My Database Records
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- Script with Auth + Firestore Integration -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+    import { 
+      getAuth, 
+      signInWithPopup, 
+      GoogleAuthProvider, 
+      signOut, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+    import { 
+      getFirestore, 
+      collection, 
+      getDocs, 
+      doc, 
+      setDoc, 
+      deleteDoc 
+    } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBHfPxr0EYAc8VCX5FbgzC9GFKw4GJehS8",
+      authDomain: "tracker-4bb6f.firebaseapp.com",
+      projectId: "tracker-4bb6f",
+      storageBucket: "tracker-4bb6f.firebasestorage.app",
+      messagingSenderId: "680958087438",
+      appId: "1:680958087438:web:ad672486254cfb2532875f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    let currentUser = null;
+    let periodLogs = [];
+    let appConfig = { defaultCycleLength: 28, defaultDuration: 5 };
+    let calendarDate = new Date();
+
+    // DOM Elements
+    const authSection = document.getElementById('auth-section');
+    const authGate = document.getElementById('auth-gate');
+    const appContainer = document.getElementById('app-container');
+    const shareLinkBtn = document.getElementById('share-link-btn');
+    const gateLoginBtn = document.getElementById('gate-login-btn');
+
+    const openLogModalBtn = document.getElementById('open-log-modal-btn');
+    const closeLogModalBtn = document.getElementById('close-log-modal-btn');
+    const cancelLogBtn = document.getElementById('cancel-log-btn');
+    const logModal = document.getElementById('log-modal');
+    const logModalCard = document.getElementById('log-modal-card');
+    const periodForm = document.getElementById('period-form');
+    const startDateInput = document.getElementById('period-start-date');
+    const durationInput = document.getElementById('period-duration');
+    const durationValLabel = document.getElementById('duration-val-label');
+    const notesInput = document.getElementById('period-notes');
+    const editIdInput = document.getElementById('edit-id');
+    const modalTitle = document.getElementById('modal-title');
+    const periodLogsList = document.getElementById('period-logs-list');
+    const emptyHistory = document.getElementById('empty-history');
+    const logCountBadge = document.getElementById('log-count-badge');
+    const statNextDate = document.getElementById('stat-next-date');
+    const statCountdown = document.getElementById('stat-countdown');
+    const statAvgCycle = document.getElementById('stat-avg-cycle');
+    const statCycleSubtitle = document.getElementById('stat-cycle-subtitle');
+    const statAvgDuration = document.getElementById('stat-avg-duration');
+    const statFertileWindow = document.getElementById('stat-fertile-window');
+    const statOvulationDay = document.getElementById('stat-ovulation-day');
+    const statStatusBadge = document.getElementById('stat-status-badge');
+    const calendarGrid = document.getElementById('calendar-grid');
+    const calendarMonthYear = document.getElementById('calendar-month-year');
+    const calPrevBtn = document.getElementById('cal-prev');
+    const calNextBtn = document.getElementById('cal-next');
+    const calTodayBtn = document.getElementById('cal-today');
+    const openSettingsBtn = document.getElementById('open-settings-btn');
+    const closeSettingsModalBtn = document.getElementById('close-settings-modal-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const defaultCycleInput = document.getElementById('default-cycle-input');
+    const saveDefaultCycleBtn = document.getElementById('save-default-cycle-btn');
+    const exportJsonBtn = document.getElementById('export-json-btn');
+    const importJsonInput = document.getElementById('import-json-input');
+    const clearDataBtn = document.getElementById('clear-data-btn');
+
+    // Authentication State Observer
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user;
+      updateAuthUI(user);
+
+      if (user) {
+        authGate.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+        await loadUserData(user.uid);
+      } else {
+        periodLogs = [];
+        renderAll();
+        authGate.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+      }
+    });
+
+    function updateAuthUI(user) {
+      if (user) {
+        authSection.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <img src="${user.photoURL || 'https://via.placeholder.com/32'}" alt="${user.displayName || 'User'}" class="w-7 h-7 rounded-full border border-rose-200">
+            <button id="logout-btn" type="button" class="text-xs font-semibold text-slate-500 hover:text-rose-600 transition px-1">Sign Out</button>
+          </div>
+        `;
+        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+      } else {
+        authSection.innerHTML = `
+          <button id="google-login-btn" type="button" class="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition flex items-center gap-1.5">
+            <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+            <span>Sign In</span>
+          </button>
+        `;
+        document.getElementById('google-login-btn').addEventListener('click', triggerLogin);
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    async function triggerLogin() {
+      try {
+        await signInWithPopup(auth, provider);
+        showToast("Signed in successfully!");
+      } catch (err) {
+        showToast("Sign in failed: " + err.message, "error");
+      }
+    }
+
+    gateLoginBtn.addEventListener('click', triggerLogin);
+
+    // Shareable link logic: Copies or natively shares URL
+    shareLinkBtn.addEventListener('click', async () => {
+      const shareUrl = window.location.origin + window.location.pathname;
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Bloom Period Tracker',
+            text: 'Track cycle, predictions, and symptoms privately.',
+            url: shareUrl
+          });
+        } catch (e) {
+          copyToClipboard(shareUrl);
+        }
+      } else {
+        copyToClipboard(shareUrl);
+      }
+    });
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("App URL copied to clipboard! Open it on any phone.");
+      });
+    }
+
+    // Load records strictly scoped to this authenticated user
+    async function loadUserData(userId) {
+      try {
+        const userLogsRef = collection(db, "users", userId, "periodLogs");
+        const querySnapshot = await getDocs(userLogsRef);
+        periodLogs = [];
+        querySnapshot.forEach((docSnap) => {
+          periodLogs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        periodLogs.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+        renderAll();
+      } catch (err) {
+        showToast("Error loading records: " + err.message, "error");
+      }
+    }
+
+    async function saveToFirestore(log) {
+      if (!currentUser) return;
+      try {
+        const docRef = doc(db, "users", currentUser.uid, "periodLogs", log.id);
+        await setDoc(docRef, {
+          startDate: log.startDate,
+          duration: log.duration,
+          flow: log.flow,
+          notes: log.notes,
+          createdAt: log.createdAt || new Date().toISOString()
+        });
+      } catch (err) {
+        showToast("Sync failed: " + err.message, "error");
+      }
+    }
+
+    function bindEvents() {
+      openLogModalBtn.addEventListener('click', () => openModal());
+      closeLogModalBtn.addEventListener('click', closeModal);
+      cancelLogBtn.addEventListener('click', closeModal);
+      logModal.addEventListener('click', (e) => { if (e.target === logModal) closeModal(); });
+
+      openSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+      closeSettingsModalBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+      settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+
+      durationInput.addEventListener('input', (e) => { durationValLabel.textContent = `${e.target.value} days`; });
+      periodForm.addEventListener('submit', handleFormSubmit);
+
+      calPrevBtn.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(); });
+      calNextBtn.addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(); });
+      calTodayBtn.addEventListener('click', () => { calendarDate = new Date(); renderCalendar(); });
+
+      saveDefaultCycleBtn.addEventListener('click', () => {
+        const val = parseInt(defaultCycleInput.value, 10);
+        if (val >= 18 && val <= 50) {
+          appConfig.defaultCycleLength = val;
+          renderAll();
+          showToast(`Default baseline set to ${val} days`);
+          settingsModal.classList.add('hidden');
+        } else {
+          showToast("Enter a cycle between 18 and 50 days", "error");
+        }
+      });
+
+      exportJsonBtn.addEventListener('click', exportData);
+      importJsonInput.addEventListener('change', importData);
+
+      clearDataBtn.addEventListener('click', async () => {
+        if (!currentUser) return;
+        if (confirm("Delete all your records from your account?")) {
+          for (const log of periodLogs) {
+            await deleteDoc(doc(db, "users", currentUser.uid, "periodLogs", log.id));
+          }
+          periodLogs = [];
+          renderAll();
+          settingsModal.classList.add('hidden');
+          showToast("All logs cleared", "info");
+        }
+      });
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const dateStr = startDateInput.value;
+      const duration = parseInt(durationInput.value, 10);
+      const notes = notesInput.value.trim();
+      const flow = document.querySelector('input[name="flow"]:checked')?.value || 'Medium';
+      const editId = editIdInput.value;
+
+      if (!dateStr) return showToast("Please pick a date", "error");
+
+      let currentLog;
+      if (editId) {
+        const index = periodLogs.findIndex(log => log.id === editId);
+        if (index !== -1) {
+          periodLogs[index] = { ...periodLogs[index], startDate: dateStr, duration, flow, notes };
+          currentLog = periodLogs[index];
+          showToast("Entry updated");
+        }
+      } else {
+        const exists = periodLogs.some(log => log.startDate === dateStr);
+        if (exists) return showToast("An entry already exists for this date", "error");
+
+        currentLog = {
+          id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          startDate: dateStr,
+          duration,
+          flow,
+          notes,
+          createdAt: new Date().toISOString()
+        };
+        periodLogs.push(currentLog);
+        showToast("Period recorded!");
+      }
+
+      periodLogs.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+      await saveToFirestore(currentLog);
+      renderAll();
+      closeModal();
+    }
+
+    function openModal(log = null) {
+      if (log) {
+        modalTitle.textContent = "Edit Entry";
+        editIdInput.value = log.id;
+        startDateInput.value = log.startDate;
+        durationInput.value = log.duration || 5;
+        durationValLabel.textContent = `${log.duration || 5} days`;
+        notesInput.value = log.notes || '';
+        const flowRadio = document.querySelector(`input[name="flow"][value="${log.flow}"]`);
+        if (flowRadio) flowRadio.checked = true;
+      } else {
+        modalTitle.textContent = "Record Period Date";
+        editIdInput.value = '';
+        startDateInput.value = new Date().toISOString().split('T')[0];
+        durationInput.value = appConfig.defaultDuration;
+        durationValLabel.textContent = `${appConfig.defaultDuration} days`;
+        notesInput.value = '';
+        const defaultRadio = document.querySelector('input[name="flow"][value="Medium"]');
+        if (defaultRadio) defaultRadio.checked = true;
+      }
+      logModal.classList.remove('hidden');
+      setTimeout(() => {
+        logModalCard.classList.remove('scale-95', 'opacity-0');
+        logModalCard.classList.add('scale-100', 'opacity-100');
+      }, 10);
+    }
+
+    function closeModal() {
+      logModalCard.classList.remove('scale-100', 'opacity-100');
+      logModalCard.classList.add('scale-95', 'opacity-0');
+      setTimeout(() => { logModal.classList.add('hidden'); periodForm.reset(); }, 150);
+    }
+
+    async function deleteLog(id) {
+      if (!currentUser) return;
+      if (confirm("Delete this entry?")) {
+        try {
+          await deleteDoc(doc(db, "users", currentUser.uid, "periodLogs", id));
+          periodLogs = periodLogs.filter(item => item.id !== id);
+          renderAll();
+          showToast("Entry deleted");
+        } catch (err) {
+          showToast("Failed to delete: " + err.message, "error");
+        }
+      }
+    }
+
+    function computeCycleMetrics() {
+      const sortedAsc = [...periodLogs].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      let cycleLengths = [];
+      let durations = [];
+
+      for (let i = 0; i < sortedAsc.length; i++) {
+        durations.push(sortedAsc[i].duration || 5);
+        if (i > 0) {
+          const dPrev = new Date(sortedAsc[i - 1].startDate);
+          const dCurr = new Date(sortedAsc[i].startDate);
+          const diffDays = Math.round((dCurr - dPrev) / (1000 * 60 * 60 * 24));
+          if (diffDays >= 15 && diffDays <= 65) cycleLengths.push(diffDays);
+        }
+      }
+
+      const avgCycle = cycleLengths.length > 0 ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length) : appConfig.defaultCycleLength;
+      const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : appConfig.defaultDuration;
+
+      let nextPeriodDate = null, ovulationDate = null, fertileStart = null, fertileEnd = null, daysRemaining = null;
+
+      if (sortedAsc.length > 0) {
+        const latestPeriod = sortedAsc[sortedAsc.length - 1];
+        const lastDate = parseLocalDate(latestPeriod.startDate);
+        nextPeriodDate = new Date(lastDate);
+        nextPeriodDate.setDate(lastDate.getDate() + avgCycle);
+        ovulationDate = new Date(nextPeriodDate);
+        ovulationDate.setDate(nextPeriodDate.getDate() - 14);
+        fertileStart = new Date(ovulationDate);
+        fertileStart.setDate(ovulationDate.getDate() - 5);
+        fertileEnd = new Date(ovulationDate);
+        fertileEnd.setDate(ovulationDate.getDate() + 1);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextClean = new Date(nextPeriodDate);
+        nextClean.setHours(0, 0, 0, 0);
+        daysRemaining = Math.round((nextClean - today) / (1000 * 60 * 60 * 24));
+      }
+
+      return { sortedAsc, cycleLengths, avgCycle, avgDuration, nextPeriodDate, ovulationDate, fertileStart, fertileEnd, daysRemaining };
+    }
+
+    function renderMetrics(metrics) {
+      const { avgCycle, avgDuration, nextPeriodDate, ovulationDate, fertileStart, fertileEnd, daysRemaining, cycleLengths } = metrics;
+      statAvgCycle.textContent = avgCycle;
+      statAvgDuration.textContent = avgDuration;
+      statCycleSubtitle.textContent = cycleLengths.length > 0 ? `Based on ${cycleLengths.length} cycle interval${cycleLengths.length > 1 ? 's' : ''}` : "Standard default baseline";
+
+      if (nextPeriodDate) {
+        statNextDate.textContent = nextPeriodDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        if (daysRemaining > 1) {
+          statCountdown.textContent = `In ${daysRemaining} days`;
+          statStatusBadge.textContent = "Upcoming";
+          statStatusBadge.className = "px-2 py-0.5 rounded-full bg-rose-700/50 text-[10px] font-semibold";
+        } else if (daysRemaining === 1) {
+          statCountdown.textContent = "Expected tomorrow";
+          statStatusBadge.textContent = "Imminent";
+          statStatusBadge.className = "px-2 py-0.5 rounded-full bg-rose-700 text-[10px] font-semibold";
+        } else if (daysRemaining === 0) {
+          statCountdown.textContent = "Expected today";
+          statStatusBadge.textContent = "Today";
+          statStatusBadge.className = "px-2 py-0.5 rounded-full bg-amber-600 text-[10px] font-semibold";
+        } else {
+          const daysAgo = Math.abs(daysRemaining);
+          statCountdown.textContent = `${daysAgo} day${daysAgo > 1 ? 's' : ''} overdue`;
+          statStatusBadge.textContent = "Late";
+          statStatusBadge.className = "px-2 py-0.5 rounded-full bg-amber-800 text-[10px] font-semibold";
+        }
+        statFertileWindow.textContent = `${fertileStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${fertileEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+        statOvulationDay.textContent = ovulationDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } else {
+        statNextDate.textContent = "--";
+        statCountdown.textContent = "Add your period to see forecast";
+        statStatusBadge.textContent = "No data";
+        statFertileWindow.textContent = "--";
+        statOvulationDay.textContent = "--";
+      }
+    }
+
+    function renderHistory(metrics) {
+      const { sortedAsc } = metrics;
+      logCountBadge.textContent = `${periodLogs.length} record${periodLogs.length === 1 ? '' : 's'}`;
+      if (periodLogs.length === 0) {
+        emptyHistory.classList.remove('hidden');
+        periodLogsList.innerHTML = '';
+        return;
+      }
+      emptyHistory.classList.add('hidden');
+      const sortedDesc = [...periodLogs].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+
+      periodLogsList.innerHTML = sortedDesc.map((log) => {
+        const dateObj = parseLocalDate(log.startDate);
+        const formattedDate = dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        let cycleBadge = '';
+        const curIdx = sortedAsc.findIndex(item => item.id === log.id);
+        if (curIdx > 0) {
+          const prevLog = sortedAsc[curIdx - 1];
+          const days = Math.round((new Date(log.startDate) - new Date(prevLog.startDate)) / (1000 * 60 * 60 * 24));
+          cycleBadge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600">${days}d cycle</span>`;
+        }
+
+        return `
+          <div class="p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-rose-200 transition group flex items-start justify-between">
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-xs text-slate-800">${formattedDate}</span>
+                ${cycleBadge}
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                <span>Duration: <strong>${log.duration || 5}d</strong></span>
+                <span>&bull;</span>
+                <span>Flow: <strong class="text-rose-500">${log.flow || 'Medium'}</strong></span>
+              </div>
+              ${log.notes ? `<p class="text-[10px] text-slate-500 italic mt-0.5 bg-white px-2 py-0.5 rounded border border-slate-100">"${escapeHtml(log.notes)}"</p>` : ''}
+            </div>
+            <div class="flex items-center space-x-1 opacity-80 group-hover:opacity-100">
+              <button onclick="editLogById('${log.id}')" title="Edit" class="p-1 rounded text-slate-400 hover:text-slate-700">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="deleteLogById('${log.id}')" title="Delete" class="p-1 rounded text-slate-400 hover:text-rose-600">
+                <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    window.editLogById = (id) => { const item = periodLogs.find(l => l.id === id); if (item) openModal(item); };
+    window.deleteLogById = (id) => { deleteLog(id); };
+
+    function renderCalendar() {
+      const metrics = computeCycleMetrics();
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+      calendarMonthYear.textContent = calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+      const loggedDatesMap = new Map();
+      periodLogs.forEach(log => {
+        const start = parseLocalDate(log.startDate);
+        const dur = log.duration || 5;
+        for (let d = 0; d < dur; d++) {
+          const cur = new Date(start);
+          cur.setDate(start.getDate() + d);
+          loggedDatesMap.set(formatDateKey(cur), true);
+        }
+      });
+
+      const projectedDatesMap = new Map();
+      if (metrics.nextPeriodDate) {
+        const nextStart = new Date(metrics.nextPeriodDate);
+        const dur = metrics.avgDuration || 5;
+        for (let d = 0; d < dur; d++) {
+          const cur = new Date(nextStart);
+          cur.setDate(nextStart.getDate() + d);
+          projectedDatesMap.set(formatDateKey(cur), true);
+        }
+      }
+
+      let fertileKeys = new Set();
+      let ovulationKey = null;
+      if (metrics.fertileStart && metrics.fertileEnd && metrics.ovulationDate) {
+        let cur = new Date(metrics.fertileStart);
+        while (cur <= metrics.fertileEnd) {
+          fertileKeys.add(formatDateKey(cur));
+          cur.setDate(cur.getDate() + 1);
+        }
+        ovulationKey = formatDateKey(metrics.ovulationDate);
+      }
+
+      const todayKey = formatDateKey(new Date());
+      let html = '';
+
+      for (let i = firstDayIndex; i > 0; i--) {
+        const dayNum = daysInPrevMonth - i + 1;
+        html += `<div class="p-2 text-center text-xs text-slate-300 pointer-events-none select-none">${dayNum}</div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const cellDate = new Date(year, month, day);
+        const dateKey = formatDateKey(cellDate);
+        let cellClass = "h-8 w-8 mx-auto flex items-center justify-center text-xs rounded-full cursor-pointer transition ";
+
+        if (loggedDatesMap.has(dateKey)) {
+          cellClass += "period-day font-bold";
+        } else if (projectedDatesMap.has(dateKey)) {
+          cellClass += "predicted-day font-bold";
+        } else if (dateKey === ovulationKey) {
+          cellClass += "ovulation-day font-bold";
+        } else if (fertileKeys.has(dateKey)) {
+          cellClass += "fertile-day font-semibold";
+        } else {
+          cellClass += "text-slate-700 hover:bg-rose-50";
+        }
+
+        if (dateKey === todayKey) cellClass += " today-marker font-bold";
+
+        html += `<div class="py-1"><button type="button" onclick="handleDayClick('${dateKey}')" class="${cellClass}">${day}</button></div>`;
+      }
+
+      const totalCells = firstDayIndex + daysInMonth;
+      const remaining = (7 - (totalCells % 7)) % 7;
+      for (let i = 1; i <= remaining; i++) {
+        html += `<div class="p-2 text-center text-xs text-slate-300 pointer-events-none select-none">${i}</div>`;
+      }
+      calendarGrid.innerHTML = html;
+    }
+
+    window.handleDayClick = (dateKey) => {
+      const existing = periodLogs.find(l => l.startDate === dateKey);
+      if (existing) openModal(existing); 
+      else { startDateInput.value = dateKey; openModal(); }
+    };
+
+    function renderAll() {
+      const metrics = computeCycleMetrics();
+      renderMetrics(metrics);
+      renderHistory(metrics);
+      renderCalendar();
+    }
+
+    function exportData() {
+      if (periodLogs.length === 0) return showToast("No data to export", "info");
+      const dataToExport = { version: 1, exportedAt: new Date().toISOString(), config: appConfig, logs: periodLogs };
+      const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", jsonStr);
+      downloadAnchor.setAttribute("download", `bloom_backup_${new Date().toISOString().slice(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast("Backup file downloaded");
+    }
+
+    function importData(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const parsed = JSON.parse(evt.target.result);
+          if (Array.isArray(parsed.logs)) {
+            periodLogs = parsed.logs;
+            for (const log of periodLogs) { await saveToFirestore(log); }
+            showToast(`Restored ${periodLogs.length} logs`);
+          }
+          renderAll();
+          settingsModal.classList.add('hidden');
+        } catch (err) {
+          showToast("Error parsing file", "error");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      let bg = 'bg-slate-900 text-white', icon = 'check-circle';
+      if (type === 'error') { bg = 'bg-rose-600 text-white'; icon = 'alert-circle'; }
+      else if (type === 'info') { bg = 'bg-slate-700 text-white'; icon = 'info'; }
+      toast.className = `${bg} px-4 py-2.5 rounded-2xl shadow-xl flex items-center space-x-2 text-xs font-semibold transform transition-all duration-300 translate-y-3 opacity-0`;
+      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      if (window.lucide) lucide.createIcons();
+      setTimeout(() => toast.classList.remove('translate-y-3', 'opacity-0'), 10);
+      setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); setTimeout(() => toast.remove(), 300); }, 3200);
+    }
+
+    function parseLocalDate(dateStr) { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d); }
+    function formatDateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+
+    bindEvents();
+  </script>
+</body>
+</html>

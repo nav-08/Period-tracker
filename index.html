@@ -3,8 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bloom - Cycle & Period Tracker</title>
+  <title>My Period Tracker</title>
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f43f5e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Tracker">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     .period-day { background-color: #f43f5e !important; color: #ffffff !important; }
@@ -20,19 +32,18 @@
   <header class="bg-white/80 backdrop-blur border-b border-rose-100 sticky top-0 z-30">
     <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-2">
-        <div class="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">B</div>
-        <span class="font-extrabold text-lg text-slate-800 tracking-tight">Bloom</span>
+        <div class="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-sm">P</div>
+        <span class="font-extrabold text-lg text-slate-800 tracking-tight">My Period Tracker</span>
       </div>
 
       <!-- Auth Bar & Shareable Link Trigger -->
       <div class="flex items-center space-x-2">
-        <button id="share-link-btn" type="button" class="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition flex items-center gap-1.5" title="Copy shareable link to open on phone">
+        <button id="share-link-btn" type="button" class="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition flex items-center gap-1.5" title="Share link to open on phone">
           <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
           <span class="hidden sm:inline">Share Link</span>
         </button>
 
         <div id="auth-section" class="flex items-center space-x-2">
-          <!-- Populated dynamically via JS -->
           <button id="google-login-btn" type="button" class="px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition flex items-center gap-1.5">
             <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
             <span>Sign In</span>
@@ -368,14 +379,14 @@
 
     gateLoginBtn.addEventListener('click', triggerLogin);
 
-    // Shareable link logic: Copies or natively shares URL
+    // Share Link Handler
     shareLinkBtn.addEventListener('click', async () => {
       const shareUrl = window.location.origin + window.location.pathname;
       if (navigator.share) {
         try {
           await navigator.share({
-            title: 'Bloom Period Tracker',
-            text: 'Track cycle, predictions, and symptoms privately.',
+            title: 'My Period Tracker',
+            text: 'Track cycle, predictions, and fertile window forecasting.',
             url: shareUrl
           });
         } catch (e) {
@@ -388,7 +399,7 @@
 
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text).then(() => {
-        showToast("App URL copied to clipboard! Open it on any phone.");
+        showToast("Link copied to clipboard! Open it on your phone.");
       });
     }
 
@@ -837,6 +848,17 @@
     function escapeHtml(str) { if (!str) return ''; return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
     bindEvents();
+  </script>
+
+  <!-- Service Worker Registration for PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => console.log('Service Worker registered with scope:', reg.scope))
+          .catch((err) => console.error('Service Worker registration failed:', err));
+      });
+    }
   </script>
 </body>
 </html>
